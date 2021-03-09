@@ -36,10 +36,13 @@ namespace MusicTypePatcher
 
                 foreach (var musicType in value)
                 {
-                    shouldKeep = trackList.Except(musicType.Tracks).Any();
-                    foreach (var tracks in musicType.Tracks.GroupBy(_ => _.FormKey))
+                    if (musicType.Tracks != null) 
                     {
-                        trackList.AddRange(tracks.Skip(trackList.Count(_ => _.FormKey == tracks.Key)));
+                        shouldKeep = trackList.Except(musicType.Tracks).Any();
+                        foreach (var tracks in musicType.Tracks.GroupBy(_ => _.FormKey))
+                        {
+                            trackList.AddRange(tracks.Skip(trackList.Count(_ => _.FormKey == tracks.Key)));
+                        }
                     }
                 }
 
