@@ -12,14 +12,10 @@ namespace MusicTypePatcher
     {
         public static async Task<int> Main(string[] args)
         {
-            return await SynthesisPipeline.Instance.AddPatch<ISkyrimMod, ISkyrimModGetter>(Apply).Run(args, new RunPreferences()
-            {
-                ActionsForEmptyArgs = new RunDefaultPatcher()
-                {
-                    IdentifyingModKey = "MusicTypeSynthesisPatch.esp",
-                    TargetRelease = GameRelease.SkyrimSE
-                }
-            });
+            return await SynthesisPipeline.Instance
+                .SetTypicalOpen(GameRelease.SkyrimSE, "MusicTypeSynthesisPatch.esp")
+                .AddPatch<ISkyrimMod, ISkyrimModGetter>(Apply)
+                .Run(args);
         }
 
         private static void Apply(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
@@ -32,7 +28,7 @@ namespace MusicTypePatcher
             foreach(var value in query)
             {
                 bool shouldKeep = false;
-                var trackList = new ExtendedList<IFormLink<IMusicTrackGetter>>();
+                var trackList = new ExtendedList<IFormLinkGetter<IMusicTrackGetter>>();
 
                 foreach (var musicType in value)
                 {
@@ -51,7 +47,7 @@ namespace MusicTypePatcher
                     var copy = new MusicType(value.Key, SkyrimRelease.SkyrimSE) { Tracks = trackList };
                     copy.DeepCopyIn(value.First(), new MusicType.TranslationMask(defaultOn: true) { Tracks = false });
                     state.PatchMod.MusicTypes.GetOrAddAsOverride(copy);
-                    Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count() - value.First().Tracks.Count(), copy.EditorID);
+                    Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - (value.First().Tracks?.Count ?? 0), copy.EditorID);
                 }
             }
         }
