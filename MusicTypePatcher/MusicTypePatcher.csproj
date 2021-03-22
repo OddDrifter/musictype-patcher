@@ -1,15 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <Platforms>x64</Platforms>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mutagen.Bethesda" Version="0.26.0" />
-    <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.14.1" />
+    <PackageReference Include="Mutagen.Bethesda" Version="0.27.3" />
+    <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.17.3" />
   </ItemGroup>
 
 </Project>
