@@ -5,6 +5,7 @@ using Noggog;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using static MoreLinq.Extensions.WindowExtension;
 
 namespace MusicTypePatcher
 {
@@ -13,42 +14,49 @@ namespace MusicTypePatcher
         public static async Task<int> Main(string[] args)
         {
             return await SynthesisPipeline.Instance
-                .SetTypicalOpen(GameRelease.SkyrimSE, "MusicTypeSynthesisPatch.esp")
+                .SetTypicalOpen(GameRelease.SkyrimSE, "MusicTypes Merged.esp")
                 .AddPatch<ISkyrimMod, ISkyrimModGetter>(Apply)
                 .Run(args);
         }
 
+        private static bool IsSupersetOf(IMusicTypeGetter lhs, IMusicTypeGetter rhs)
+        {
+            if (lhs == null || rhs == null) 
+                throw new ArgumentNullException();
+
+            if (lhs.FormKey != rhs.FormKey)
+                return false;
+
+            var lhset = lhs.ContainedFormLinks.ToHashSet();
+            var rhset = rhs.ContainedFormLinks.ToHashSet();
+            return lhset.IsSupersetOf(rhset);
+        }
+
         private static void Apply(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
-            using var loadOrder = state.LoadOrder; 
-            var query = loadOrder.PriorityOrder.Reverse().OnlyEnabled()
-                .SelectMany(plugins => plugins.AsEnumerable().MusicType().WinningOverrides())
-                .GroupBy(record => record.FormKey);
+            using var loadOrder = state.LoadOrder;
+            var query = loadOrder.PriorityOrder.OnlyEnabled().WinningOverrides<IMusicTypeGetter>()
+                .Select(record => record.AsLink().ResolveAll(state.LinkCache).Reverse().ToArray())
+                .ToDictionary(records => records[0], records => records[1..]);
 
-            foreach(var value in query)
+            foreach (var (master, overrides) in query)
             {
-                bool shouldKeep = false;
-                var trackList = new ExtendedList<IFormLinkGetter<IMusicTrackGetter>>();
+                if (overrides.Window(2).All(window => IsSupersetOf(window[^1], window[0])))
+                    continue;
 
-                foreach (var musicType in value)
+                var copy = state.PatchMod.MusicTypes.GetOrAddAsOverride(master);
+                copy.FormVersion = 44;
+                copy.VersionControl = 0u;
+                copy.Tracks ??= new ExtendedList<IFormLinkGetter<IMusicTrackGetter>>();
+
+                foreach (var musicType in overrides)
                 {
-                    if (musicType.Tracks != null) 
-                    {
-                        shouldKeep = trackList.Except(musicType.Tracks).Any();
-                        foreach (var tracks in musicType.Tracks.GroupBy(_ => _.FormKey))
-                        {
-                            trackList.AddRange(tracks.Skip(trackList.Count(_ => _.FormKey == tracks.Key)));
-                        }
-                    }
+                    var links = copy.ContainedFormLinks.ToList();
+                    var keys = musicType.ContainedFormLinks.Where(link => !links.Remove(link)).Select(link => link.FormKey);
+                    copy.Tracks.AddRange(keys);
                 }
 
-                if (shouldKeep)
-                {
-                    var copy = new MusicType(value.Key, SkyrimRelease.SkyrimSE) { Tracks = trackList };
-                    copy.DeepCopyIn(value.First(), new MusicType.TranslationMask(defaultOn: true) { Tracks = false });
-                    state.PatchMod.MusicTypes.GetOrAddAsOverride(copy);
-                    Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - (value.First().Tracks?.Count ?? 0), copy.EditorID);
-                }
+                Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - (master.Tracks?.Count ?? 0), copy.EditorID);
             }
         }
     }
