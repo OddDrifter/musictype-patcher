@@ -3,6 +3,7 @@ using Mutagen.Bethesda.Skyrim;
 using Mutagen.Bethesda.Synthesis;
 using Noggog;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using static MoreLinq.Extensions.WindowExtension;
@@ -36,27 +37,36 @@ namespace MusicTypePatcher
         {
             using var loadOrder = state.LoadOrder;
             var query = loadOrder.PriorityOrder.OnlyEnabled().WinningOverrides<IMusicTypeGetter>()
-                .Select(record => record.AsLink().ResolveAll(state.LinkCache).Reverse().ToArray())
-                .ToDictionary(records => records[0], records => records[1..]);
+                .Select(record => record.AsLink().ResolveAll(state.LinkCache).Reverse())
+                .Where(records => !records.Window(2).All(window => IsSupersetOf(window.Last(), window.First())))
+                .ToDictionary(records => state.PatchMod.MusicTypes.GetOrAddAsOverride(records.First()), records => records.Skip(1));
+                
+            int originalCount = 0;
+            var temp = new List<FormLinkInformation>();
 
-            foreach (var (master, overrides) in query)
+            foreach (var (copy, overrides) in query)
             {
-                if (overrides.Window(2).All(window => IsSupersetOf(window[^1], window[0])))
-                    continue;
-
-                var copy = state.PatchMod.MusicTypes.GetOrAddAsOverride(master);
                 copy.FormVersion = 44;
                 copy.VersionControl = 0u;
                 copy.Tracks ??= new ExtendedList<IFormLinkGetter<IMusicTrackGetter>>();
 
+                originalCount = copy.Tracks.Count;
+
                 foreach (var musicType in overrides)
                 {
-                    var links = copy.ContainedFormLinks.ToList();
-                    var keys = musicType.ContainedFormLinks.Where(link => !links.Remove(link)).Select(link => link.FormKey);
+                    temp.AddRange(copy.ContainedFormLinks);
+                    var keys = musicType.ContainedFormLinks.Where(link => !link.FormKey.IsNull && !temp.Remove(link)).Select(link => link.FormKey);
                     copy.Tracks.AddRange(keys);
+                    temp.Clear();
                 }
 
-                Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - (master.Tracks?.Count ?? 0), copy.EditorID);
+                if (copy.Tracks.Count - originalCount <= 0)
+                {
+                    state.PatchMod.Remove(copy);
+                    continue;
+                }
+                
+                Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - originalCount, copy.EditorID);
             }
         }
     }
