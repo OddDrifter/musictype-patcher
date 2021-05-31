@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Mutagen.Bethesda.Plugins;
 using static MoreLinq.Extensions.WindowExtension;
 
 namespace MusicTypePatcher
@@ -42,7 +43,7 @@ namespace MusicTypePatcher
                 .ToDictionary(records => state.PatchMod.MusicTypes.GetOrAddAsOverride(records.First()), records => records.Skip(1));
                 
             int originalCount = 0;
-            var temp = new List<FormLinkInformation>();
+            var temp = new List<IFormLinkGetter>();
 
             foreach (var (copy, overrides) in query)
             {
