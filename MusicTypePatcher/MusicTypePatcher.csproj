@@ -10,7 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="morelinq" Version="3.4.2" />
     <PackageReference Include="Mutagen.Bethesda" Version="0.41.0" />
     <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.25.4" />
   </ItemGroup>
