@@ -7,12 +7,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Mutagen.Bethesda.Plugins;
-using static MoreLinq.Extensions.WindowExtension;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Records;
 
 namespace MusicTypePatcher
 {
     public class Patcher
     {
+        public static uint Timestamp { get; } = (uint)(Math.Max(1, DateTime.Today.Year - 2000) << 9 | DateTime.Today.Month << 5 | DateTime.Today.Day);
+
         public static async Task<int> Main(string[] args)
         {
             return await SynthesisPipeline.Instance
@@ -21,53 +24,48 @@ namespace MusicTypePatcher
                 .Run(args);
         }
 
-        private static bool IsSupersetOf(IMusicTypeGetter lhs, IMusicTypeGetter rhs)
+        private static IEnumerable<IModContext<TGet>> ExtentContexts<TGet>(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, FormKey formKey)
+            where TGet : class, IMajorRecordGetter
         {
-            if (lhs == null || rhs == null) 
-                throw new ArgumentNullException();
+            var contexts = state.LinkCache.ResolveAllSimpleContexts<TGet>(formKey).ToList();
+            var masterRefs = contexts.SelectMany(i => state.LoadOrder.TryGetValue(i.ModKey)?.Mod?.MasterReferences ?? new List<IMasterReferenceGetter>(), (i, k) => (i.ModKey, k.Master))
+                .ToLookup(i => i.ModKey, i => i.Master);
 
-            if (lhs.FormKey != rhs.FormKey)
-                return false;
+            foreach (var ctx in contexts)
+            {
+                var modKey = ctx.ModKey;
+                if (contexts.Any(i => masterRefs[i.ModKey].Contains(modKey)))
+                    continue;
 
-            var lhset = lhs.ContainedFormLinks.ToHashSet();
-            var rhset = rhs.ContainedFormLinks.ToHashSet();
-            return lhset.IsSupersetOf(rhset);
+                yield return ctx;
+            }
         }
 
         private static void Apply(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
             using var loadOrder = state.LoadOrder;
-            var query = loadOrder.PriorityOrder.OnlyEnabled().WinningOverrides<IMusicTypeGetter>()
-                .Select(record => record.AsLink().ResolveAll(state.LinkCache).Reverse())
-                .Where(records => !records.Window(2).All(window => IsSupersetOf(window.Last(), window.First())))
-                .ToDictionary(records => state.PatchMod.MusicTypes.GetOrAddAsOverride(records.First()), records => records.Skip(1));
-                
-            int originalCount = 0;
-            var temp = new List<IFormLinkGetter>();
 
-            foreach (var (copy, overrides) in query)
+            foreach (var musicType in loadOrder.PriorityOrder.OnlyEnabled().MusicType().WinningOverrides())
             {
-                copy.FormVersion = 44;
-                copy.VersionControl = 0u;
-                copy.Tracks ??= new ExtendedList<IFormLinkGetter<IMusicTrackGetter>>();
-
-                originalCount = copy.Tracks.Count;
-
-                foreach (var musicType in overrides)
-                {
-                    temp.AddRange(copy.ContainedFormLinks);
-                    var keys = musicType.ContainedFormLinks.Where(link => !link.FormKey.IsNull && !temp.Remove(link)).Select(link => link.FormKey);
-                    copy.Tracks.AddRange(keys);
-                    temp.Clear();
-                }
-
-                if (copy.Tracks.Count - originalCount <= 0)
-                {
-                    state.PatchMod.Remove(copy);
+                var origin = state.LinkCache.Resolve<IMusicTypeGetter>(musicType.FormKey);
+                var extentContexts = ExtentContexts<IMusicTypeGetter>(state, musicType.FormKey).ToList();
+                if (extentContexts.Count < 2)
                     continue;
-                }
-                
-                Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - originalCount, copy.EditorID);
+
+                var copy = state.PatchMod.MusicTypes.GetOrAddAsOverride(origin);
+                copy.FormVersion = 44;
+                copy.VersionControl = Timestamp;
+                copy.Tracks = new();
+
+                var originalTracks = origin.Tracks.EmptyIfNull();
+                int originalTrackCount = originalTracks.Count();
+
+                var extentTracks = extentContexts.Select(static i => i.Record.Tracks.EmptyIfNull());
+
+                extentTracks.Aggregate(originalTracks, (i, k) => i.Intersection(k)).ForEach(copy.Tracks.Add);
+                copy.Tracks.AddRange(extentTracks.SelectMany(i => i.DisjunctLeft(copy.Tracks)));
+
+                Console.WriteLine("Copied {0} tracks to {1}", copy.Tracks.Count - originalTrackCount, copy.EditorID);
             }
         }
     }
