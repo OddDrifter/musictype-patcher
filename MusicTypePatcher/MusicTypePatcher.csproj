@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Platforms>x64</Platforms>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
@@ -10,9 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="morelinq" Version="3.3.2" />
-    <PackageReference Include="Mutagen.Bethesda" Version="0.30.1" />
-    <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.19.0" />
+    <PackageReference Include="morelinq" Version="3.4.2" />
+    <PackageReference Include="Mutagen.Bethesda" Version="0.41.0" />
+    <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.25.4" />
   </ItemGroup>
 
 </Project>
