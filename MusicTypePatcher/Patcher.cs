@@ -27,17 +27,15 @@ namespace MusicTypePatcher
         private static IEnumerable<IModContext<TGet>> ExtentContexts<TGet>(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, FormKey formKey)
             where TGet : class, IMajorRecordGetter
         {
-            var contexts = state.LinkCache.ResolveAllSimpleContexts<TGet>(formKey).ToList();
-            var masterRefs = contexts.SelectMany(i => state.LoadOrder.TryGetValue(i.ModKey)?.Mod?.MasterReferences ?? new List<IMasterReferenceGetter>(), (i, k) => (i.ModKey, k.Master))
-                .ToLookup(i => i.ModKey, i => i.Master);
+            var contexts = state.LinkCache.ResolveAllSimpleContexts<TGet>(formKey).ToArray();
+            var masters = contexts.SelectMany(i => state.LoadOrder.TryGetValue(i.ModKey)?.Mod?.MasterReferences ?? new List<IMasterReferenceGetter>(), (i, _) => _.Master)
+                .ToHashSet();
 
             foreach (var ctx in contexts)
             {
                 var modKey = ctx.ModKey;
-                if (contexts.Any(i => masterRefs[i.ModKey].Contains(modKey)))
-                    continue;
-
-                yield return ctx;
+                if (!masters.Contains(ctx.ModKey))
+                    yield return ctx;
             }
         }
 
