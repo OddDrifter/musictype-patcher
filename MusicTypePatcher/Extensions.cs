@@ -37,37 +37,29 @@ namespace MusicTypePatcher
         {
             _ = left ?? throw new ArgumentNullException(nameof(left));
 
-            Dictionary<T, int> _dictionary = new(comparer);
-
-            if (right != null)
+            if (right == null || !right.Any())
             {
-                foreach (var element in right)
-                {
-                    if (_dictionary.ContainsKey(element))
-                    {
-                        _dictionary[element]++;
-                        continue;
-                    }
-                    _dictionary.Add(element, 1);
-                }
+                foreach (var it in left)
+                    yield return it;
+                yield break;
             }
 
-            foreach (var element in left)
+            var dict = new Dictionary<T, int>(comparer);
+            foreach (var it in right)
             {
-                if (_dictionary.TryGetValue(element, out var _count))
+                if (!dict.TryAdd(it, 0))
+                    dict[it]++;
+            }
+
+            foreach (var it in left)
+            {
+                if (dict.TryGetValue(it, out int count) || count > 0)
                 {
-                    switch (_count)
-                    {
-                        case <= 0:
-                            yield return element;
-                            break;
-                        default:
-                            _dictionary[element]--;
-                            break;
-                    }
+                    dict[it] = count - 1;
                     continue;
                 }
-                yield return element;
+
+                yield return it;
             }
         }
     }
