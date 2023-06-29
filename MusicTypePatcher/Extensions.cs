@@ -45,15 +45,16 @@ namespace MusicTypePatcher
             }
 
             var dict = new Dictionary<T, int>(comparer);
+
             foreach (var it in right)
             {
-                if (!dict.TryAdd(it, 0))
+                if (!dict.TryAdd(it, 1))
                     dict[it]++;
             }
 
             foreach (var it in left)
             {
-                if (dict.TryGetValue(it, out int count) || count > 0)
+                if (dict.TryGetValue(it, out int count) && count > 0)
                 {
                     dict[it] = count - 1;
                     continue;
